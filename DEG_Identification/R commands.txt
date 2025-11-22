@@ -1,0 +1,161 @@
+gdcproject## To install packages in R
+
+install.packages('readxl')
+install.packages('affy')
+install.packages('GEOquery')
+
+## To download packages from the source file
+
+install.packages('path of the file located along with the file name')
+eg: install.packages('C:/Program Files/R/affy.tar.gz')
+
+## To load the libraries in RStudio
+
+library(affy)
+library(GEoquery)
+library(tidyverse)
+
+## To fetch the supplementary files from GEO database
+
+getGEOSuppFiles("GSE accession number")
+
+## To uncomcompress tar files
+
+untar("GSE148537/GSE148537_RAW.tar", exdir = 'data/')
+
+## reading in .cel files
+
+celFiles <- list.celfiles()
+affyRaw <- read.celfiles(celFiles)
+raw.data  <- ReadAffy(celfile.path = "data/")
+
+## RMA normalization
+
+eset <- oligo::rma(affyraw)
+normalized.data <- rma(affyraw)
+
+## To get expression estimates from normalized data
+
+write.exprs(eset, file = "data1.txt")
+normalized.expr <- exprs(normalized.data) - [this will create a matrix file]
+
+Thus, 
+
+normalized.expr <- as.data.frame(exprs(normalized.data))
+
+## Mapping the probes to gene symbols
+
+gse <- getGEO("GSE76275", GSEMatrix = TRUE)
+
+## To fetch feature data to get ID-gene symbol mapping
+
+feature.data <- gse$GSE76275_series_matrix.txt.gz@featureData@data
+
+[Column of interest Gene symbol and Probe ID - so that mapping can be done]
+
+## Subset
+
+feature.data <- feature.data[,c(1,11)]
+
+[Now merge the above obtained file with the normalized data frame]
+
+## To merge the data frames
+
+normalized.expr <- normalized.expr %>%
+	rownames_to_column(var = 'ID') %>%
+	inner_join(., feature.data, by = 'ID')
+
+
+
+## To install TCGAbiolinks - to download TCGA RNA expression data
+
+BiocManager::install("TCGAbiolinks")
+
+## To install SummarizedExperiment
+
+BiocManager::install("SummarizedExperiment")
+
+## To get a list of GDC projects
+
+gdcprojects <- getGDCprojects()
+getProjectSummary('TCGA-BRCA') - to get the summary of the project
+
+## To build a query
+
+query_TCGA <- GDCquery(project = 'TCGA-BRCA',
+	   data.category = 'Transcriptome Profiling')
+
+output_query_TCGA <- getResults(query_TCGA)
+
+## To build a query to retrieve gene expression data.....
+
+query_TCGA <- GDCquery(project = 'TCGA-BRCA',
+	   		     data.category = 'Transcriptome Profiling',
+	  		     experimental.strategy = 'RNA-Seq',
+			     workflow.type = 'STAR - counts',
+			     access = 'open',
+			     barcode = c('TCGA ID's'))
+
+getResults(query_TCGA)
+
+
+## To download the files - GDCdownload
+
+GDCdownload(query_TCGA)
+
+## To extract or prepare data from the downloaded files
+
+tcga_brca_data <- GDCprepare(query_TCGA, summarizedExperiment = TRUE)
+brca_matrix <- assay(tcga_brca_data, 'fpkm_unstrand')
+
+
+
+## To export dataframe as csv file in R
+
+write.csv(DataFrame Name, "Path to export the DataFrame\\File Name.csv", row.names=FALSE)
+
+
+## LIMMA R commands
+
+library(limma)
+pData(normalized_data)
+Groups <- c("no. of tumor and normal samples")
+design <- model.matrix(~factor(Groups))
+colnames(design) <- c("TNBC", "TNBC vs Control")
+fit <- lmfit(eset, design)
+fit <- ebayes(fit)
+options (digits = 2)
+res <- topTable(fit, number = Inf, adjust.method = "none", coef = 1)
+write.table(res, "diff_exp.txt", sep = "\t")
+
+
+## To plot PCA for gene expression data
+## PCA Plot Analysis
+
+library(ggfortify)
+library(ggplot2)
+
+write.csv(gset, "expression.csv", row.names = TRUE, col.names = TRUE)
+transposed.expr <- as.data.frame(exprs(gset))
+write.csv(transposed.expr, "expression.csv", row.names = TRUE, col.names = TRUE)
+
+## Read the data from CSV file
+
+pca_data <- read.csv("expression.csv", header = TRUE, row.names = 1)
+
+## Extract columns for control and diseased samples
+
+TNBC_samples <- pca_data[, grepl("TNBC", colnames(pca_data))]
+Control_samples <- pca_data[, grepl("Control", colnames(pca_data))]
+
+## Perform PCA
+
+pca_data_new <- prcomp(t(pca_data)) 
+
+## Create PCA plot
+
+autoplot(pca_data_new, data = t(pca_data), colour = c(rep("skyblue", ncol(Control_samples)), rep("maroon3", ncol(TNBC_samples))),
+         size = 3, main = "PCA Analysis of control and TNBC samples")+
+  theme_minimal()
+
+
